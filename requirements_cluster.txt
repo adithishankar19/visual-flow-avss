@@ -1,0 +1,6 @@
+numpy
+PyYAML
+tqdm
+einops
+librosa
+soundfile

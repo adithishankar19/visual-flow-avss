@@ -1,0 +1,20 @@
+[project]
+name = "visual-floss-avss"
+version = "0.1.0"
+description = "Visual-FLOSS for audio-visual singing voice separation"
+requires-python = ">=3.9"
+dependencies = [
+    "torch>=1.10",
+    "numpy",
+    "PyYAML",
+    "tqdm",
+    "einops",
+    "librosa",
+    "soundfile",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+include = ["mambaflow*"]
