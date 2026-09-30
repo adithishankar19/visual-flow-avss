@@ -7,9 +7,9 @@ Code and audio examples for our ICASSP 2027 submission.
 
 VIST separates a target singing voice from a music mixture that also contains accompaniment and a second, similar singer. The video of the target singer indicates which voice to return. A single velocity network is trained on straight paths from a perturbed copy of the mixture to the target voice. At test time, the target is estimated with **one network evaluation** starting from the mixture:
 
-$$
+```math
 \hat{\mathbf{S}} = \mathbf{M} + u_\theta(\mathbf{M}, 0 \mid \mathbf{M}, \mathbf{V}), \qquad \hat{\mathbf{B}} = \mathbf{M} - \hat{\mathbf{S}}
-$$
+```
 
 There is no noise sampling and no step that assigns outputs to sources. The accompaniment and the interfering singer are recovered as the remainder of the mixture.
 
@@ -35,9 +35,9 @@ We evaluate on the unseen–unheard test set of Acappella under a 100% interfere
 | File | Content |
 |---|---|
 | `mixture.wav` | input: target voice + interfering singer + accompaniment |
-| `target_estimate.wav` | VIST estimate of the target voice, $\hat{S}$ |
+| `target_estimate.wav` | VIST estimate of the target voice, $`\hat{S}`$ |
 | `target_reference.wav` | ground-truth target voice |
-| `residual_estimate.wav` | estimated remainder, $M - \hat{S}$ |
+| `residual_estimate.wav` | estimated remainder, $`M - \hat{S}`$ |
 | `residual_reference.wav` | ground-truth remainder |
 | `metadata.json` | per-example SI-SDR scores |
 
@@ -53,17 +53,17 @@ The examples range from strong to weak separations. `example_0296` shows a harde
 
 ## Method
 
-**Training paths.** For a mixture STFT $\mathbf{M}$ and target $\mathbf{S}$, the path state is $\mathbf{z}_t = (1-t)(\mathbf{M}+\mathbf{n}) + t\mathbf{S}$ and the velocity target is $\mathbf{v}^\star = \mathbf{S}-\mathbf{M}-\mathbf{n}$. Here $\mathbf{n}$ is the STFT of white noise whose standard deviation is 0.1 × the mixture RMS. Half of each batch is placed at the inference state $(\mathbf{n}, t) = (\mathbf{0}, 0)$. The remaining states draw $t$ from a logit-normal distribution ($\mu=-0.4$, $\sigma=1$, $t \le 0.95$). Both the noise level and $t$ are ramped up over the first 16k updates.
+**Training paths.** For a mixture STFT $`\mathbf{M}`$ and target $`\mathbf{S}`$, the path state is $`\mathbf{z}_t = (1-t)(\mathbf{M}+\mathbf{n}) + t\mathbf{S}`$ and the velocity target is $`\mathbf{v}^\star = \mathbf{S}-\mathbf{M}-\mathbf{n}`$. Here $`\mathbf{n}`$ is the STFT of white noise whose standard deviation is 0.1 × the mixture RMS. Half of each batch is placed at the inference state $`(\mathbf{n}, t) = (\mathbf{0}, 0)`$. The remaining states draw $`t`$ from a logit-normal distribution ($`\mu=-0.4`$, $`\sigma=1`$, $`t \le 0.95`$). Both the noise level and $`t`$ are ramped up over the first 16k updates.
 
 **Objective.** The network is trained with
 
-$$
+```math
 \mathcal{L} = 0.05\,\mathcal{L}_{\mathrm{vel}} + 0.10\,\mathcal{L}_{\mathrm{MR}} + 0.05\,\mathcal{L}_{\mathrm{rel}},
-$$
+```
 
-where $\mathcal{L}_{\mathrm{vel}} = \mathrm{clip}\big(10\log_{10}\tfrac{\lVert\hat{\mathbf{v}}-\mathbf{v}^\star\rVert^2+\epsilon}{\lVert\mathbf{v}^\star\rVert^2+\epsilon},\,-20,\,30\big)$ is the scale-normalized decibel velocity loss from FLOSS. $\mathcal{L}_{\mathrm{MR}}$ is a multi-resolution STFT loss on the one-step estimate, computed in a second pass at the inference state. $\mathcal{L}_{\mathrm{rel}}$ is a binary cross-entropy that trains the visual reliability gate $r$ to detect the 10% of visual frames that are zeroed at random during training.
+where $`\mathcal{L}_{\mathrm{vel}} = \mathrm{clip}\big(10\log_{10}\tfrac{\lVert\hat{\mathbf{v}}-\mathbf{v}^\star\rVert^2+\epsilon}{\lVert\mathbf{v}^\star\rVert^2+\epsilon},\,-20,\,30\big)`$ is the scale-normalized decibel velocity loss from FLOSS. $`\mathcal{L}_{\mathrm{MR}}`$ is a multi-resolution STFT loss on the one-step estimate, computed in a second pass at the inference state. $`\mathcal{L}_{\mathrm{rel}}`$ is a binary cross-entropy that trains the visual reliability gate $`r`$ to detect the 10% of visual frames that are zeroed at random during training.
 
-**Network.** The network is a four-level TFC-TDF U-Net with 60/120/180/240 channels and two blocks per level. Its input is $[\mathbf{z}_t; \mathbf{M}]$ as 513-bin complex STFTs (window 1024, hop 256). The mixture is encoded with the band-split attention encoder from MambaVoice. The target singer's face is encoded with an ST-GCN over 68 facial landmarks. The audio and visual tokens are fused with FiLM and condition the U-Net at every scale. At the bottleneck, a cross-attention layer over the visual tokens is gated by a learned reliability $r \in [0.25, 1]$. The model has 23.2M parameters.
+**Network.** The network is a four-level TFC-TDF U-Net with 60/120/180/240 channels and two blocks per level. Its input is $`[\mathbf{z}_t; \mathbf{M}]`$ as 513-bin complex STFTs (window 1024, hop 256). The mixture is encoded with the band-split attention encoder from MambaVoice. The target singer's face is encoded with an ST-GCN over 68 facial landmarks. The audio and visual tokens are fused with FiLM and condition the U-Net at every scale. At the bottleneck, a cross-attention layer over the visual tokens is gated by a learned reliability $`r \in [0.25, 1]`$. The model has 23.2M parameters.
 
 ## Repository layout
 
@@ -175,7 +175,7 @@ export VISUAL_MODE=correct                    # correct | zero | shift | wrong |
 bash scripts/evaluate_local.sh
 ```
 
-For every mixture, the script reports BSS-Eval SDR and SIR (512-tap distortion filters, with the target and the rest of the mixture as references, after resampling to 16 kHz), SI-SDR, and whether the target was swapped, i.e. whether the remainder $\mathbf{M}-\hat{\mathbf{S}}$ is closer to the target than $\hat{\mathbf{S}}$ in SI-SDR. It prints means with 95% bootstrap confidence intervals, and `OUT_CSV` keeps the per-mixture scores. Set `SAVE_DIR` to also write the audio in the layout of [`samples/`](samples).
+For every mixture, the script reports BSS-Eval SDR and SIR (512-tap distortion filters, with the target and the rest of the mixture as references, after resampling to 16 kHz), SI-SDR, and whether the target was swapped, i.e. whether the remainder $`\mathbf{M}-\hat{\mathbf{S}}`$ is closer to the target than $`\hat{\mathbf{S}}`$ in SI-SDR. It prints means with 95% bootstrap confidence intervals, and `OUT_CSV` keeps the per-mixture scores. Set `SAVE_DIR` to also write the audio in the layout of [`samples/`](samples).
 
 `VISUAL_MODE` runs the visual interventions of Table 3: the correct face, zeroed landmarks, landmarks shifted in time by half the clip, and the landmarks of a singer from another test clip. `all` also prints the paired SDR differences to the correct face. EMA weights are used by default. See `python scripts/evaluate.py --help` for all options.
 
