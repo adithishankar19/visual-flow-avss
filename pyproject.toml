@@ -1,7 +1,7 @@
 [project]
 name = "visual-floss-avss"
 version = "0.1.0"
-description = "Visual-FLOSS for audio-visual singing voice separation"
+description = "VIST: visually indexed, mixture-anchored source transport for one-step audiovisual singing voice separation"
 requires-python = ">=3.9"
 dependencies = [
     "torch>=1.10",

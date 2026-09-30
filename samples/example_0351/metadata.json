@@ -1,0 +1,12 @@
+{
+  "example": 351,
+  "batch_index": 351,
+  "batch_item": 0,
+  "sample_rate": 16384,
+  "num_steps": 1,
+  "prediction_si_sdr": 12.000436782836914,
+  "input_si_sdr": -2.448420286178589,
+  "si_sdri": 14.448857069015503,
+  "residual_to_target_si_sdr": -22.687965393066406,
+  "mixture_consistency_max_error": 0.0
+}

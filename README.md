@@ -1,59 +1,119 @@
-# Visual-FLOSS for Audio-Visual Singing Voice Separation
+# VIST: Visually Indexed, Mixture-Anchored Source Transport for One-Step Audiovisual Singing Voice Separation
 
-This repository contains a compact research implementation of **Visual-FLOSS**, a mixture-initialized flow objective for audio-visual singing voice separation. The public release intentionally provides one canonical experiment so the training objective and reproduction path are unambiguous.
+Adithi Shankar, Gloria Haro, Xavier Serra, Martín Rocamora
+Universitat Pompeu Fabra, Barcelona
 
-## Objective
+Code and audio examples for our ICASSP 2027 submission.
 
-The released configuration optimizes exactly
+VIST separates a target singing voice from a music mixture that also contains accompaniment and a second, similar singer. The video of the target singer indicates which voice to return. A single velocity network is trained on straight paths from a perturbed copy of the mixture to the target voice. At test time, the target is estimated with **one network evaluation** starting from the mixture:
 
-\[
-\mathcal{L}=0.05\,\mathcal{L}_{\mathrm{FLOSS}}+0.10\,\mathcal{L}_{\mathrm{MR\text{-}STFT}}.
-\]
+$$
+\hat{\mathbf{S}} = \mathbf{M} + u_\theta(\mathbf{M}, 0 \mid \mathbf{M}, \mathbf{V}), \qquad \hat{\mathbf{B}} = \mathbf{M} - \hat{\mathbf{S}}
+$$
 
-There is no waveform L1 deployment loss, endpoint L1 loss, drift loss, flow-matching loss, MeanFlow loss, or auxiliary reliability loss. Some of these quantities remain in the training logs as diagnostics, but their coefficients are zero.
+There is no noise sampling and no step that assigns outputs to sources. The accompaniment and the interfering singer are recovered as the remainder of the mixture.
 
-Visual-FLOSS supervises velocities at both the deployment state and sampled intermediate states. The scale-normalized velocity error is expressed in decibels, while the multi-resolution STFT term encourages spectrally faithful separated audio.
+## Results
+
+We evaluate on the unseen–unheard test set of Acappella under a 100% interference stress test: 1,500 fixed mixtures, each containing an interfering singer. The mixtures follow the MambaVoice protocol. Scores are in dB.
+
+| Model | Params (M) | SDR mean | SDR median | SI-SDR | SIR |
+|---|---:|---:|---:|---:|---:|
+| Audio-only | 14.8 | 0.64 | 0.45 | 0.30 | 1.42 |
+| VoViT | 39.0 | 11.82 | 12.63 | 10.08 | 19.37 |
+| VoViT<sup>100</sup> | 39.0 | 8.83 | 9.94 | 8.53 | 13.69 |
+| MambaVoice | 16.2 | 11.11 | 11.55 | 9.71 | 17.14 |
+| **VIST** | 23.2 | **12.18** | **13.32** | **11.12** | **20.22** |
+
+- Integrating the learned field with more Euler steps does not help: K = 1, 2, 4 steps give 12.18, 12.08, and 12.06 dB SDR.
+- With the correct face, the model separates the wrong singer (target swapping) in 3.8% of mixtures. When the face is zeroed, time-shifted, or taken from another singer, this rises to 48–55%, so target selection depends on the time alignment of face and voice.
+
+## Audio examples
+
+[`samples/`](samples) contains five test mixtures from the unseen–unheard set (100% interference, one-step inference, 16,384 Hz, 4 s each). Each folder contains:
+
+| File | Content |
+|---|---|
+| `mixture.wav` | input: target voice + interfering singer + accompaniment |
+| `target_estimate.wav` | VIST estimate of the target voice, $\hat{S}$ |
+| `target_reference.wav` | ground-truth target voice |
+| `residual_estimate.wav` | estimated remainder, $M - \hat{S}$ |
+| `residual_reference.wav` | ground-truth remainder |
+| `metadata.json` | per-example SI-SDR scores |
+
+| Example | Input SI-SDR | Output SI-SDR | SI-SDRi |
+|---|---:|---:|---:|
+| [`example_1352`](samples/example_1352) | −4.94 | 16.17 | 21.11 |
+| [`example_0775`](samples/example_0775) | −2.30 | 17.22 | 19.52 |
+| [`example_0351`](samples/example_0351) | −2.45 | 12.00 | 14.45 |
+| [`example_1039`](samples/example_1039) | −0.31 | 12.39 | 12.70 |
+| [`example_0296`](samples/example_0296) | 3.06 | 5.85 | 2.78 |
+
+The examples range from strong to weak separations. `example_0296` shows a harder case. [`samples/metadata_test_unseen_1500.csv`](samples/metadata_test_unseen_1500.csv) lists the per-mixture SI-SDR scores for all 1,500 test mixtures.
+
+## Method
+
+**Training paths.** For a mixture STFT $\mathbf{M}$ and target $\mathbf{S}$, the path state is $\mathbf{z}_t = (1-t)(\mathbf{M}+\mathbf{n}) + t\mathbf{S}$ and the velocity target is $\mathbf{v}^\star = \mathbf{S}-\mathbf{M}-\mathbf{n}$. Here $\mathbf{n}$ is the STFT of white noise whose standard deviation is 0.1 × the mixture RMS. Half of each batch is placed at the inference state $(\mathbf{n}, t) = (\mathbf{0}, 0)$. The remaining states draw $t$ from a logit-normal distribution ($\mu=-0.4$, $\sigma=1$, $t \le 0.95$). Both the noise level and $t$ are ramped up over the first 16k updates.
+
+**Objective.** The released configuration optimizes
+
+$$
+\mathcal{L} = 0.05\,\mathcal{L}_{\mathrm{vel}} + 0.10\,\mathcal{L}_{\mathrm{MR}},
+$$
+
+where $\mathcal{L}_{\mathrm{vel}} = \mathrm{clip}\big(10\log_{10}\tfrac{\lVert\hat{\mathbf{v}}-\mathbf{v}^\star\rVert^2+\epsilon}{\lVert\mathbf{v}^\star\rVert^2+\epsilon},\,-20,\,30\big)$ is the scale-normalized decibel velocity loss from FLOSS. $\mathcal{L}_{\mathrm{MR}}$ is a multi-resolution STFT loss on the one-step estimate. Other loss terms, such as deployment, endpoint, and drift losses, still appear in the logs as diagnostics, but their coefficients are zero.
+
+**Network.** The network is a four-level TFC-TDF U-Net with 60/120/180/240 channels and two blocks per level. Its input is $[\mathbf{z}_t; \mathbf{M}]$ as 513-bin complex STFTs (window 1024, hop 256). The mixture is encoded with the band-split attention encoder from MambaVoice. The target singer's face is encoded with an ST-GCN over 68 facial landmarks. The audio and visual tokens are fused with FiLM and condition the U-Net at every scale. At the bottleneck, a cross-attention layer over the visual tokens is gated by a learned reliability $r \in [0.25, 1]$. The model has 23.2M parameters.
 
 ## Repository layout
 
 ```text
-configs/visual_floss_mrstft.yaml   canonical experiment
-mambaflow/                        model, objective, and training code
-patches/                          Acappella/MUSDB/AudioSet data loader
-scripts/train_local.sh            portable local training wrapper
-scripts/evaluate_local.sh         portable local evaluation wrapper
-scripts/train.py                  Python training entry point
-scripts/evaluate.py               Python evaluation entry point
-scripts/infer_one.py              single-example inference
-cluster/                          generic Slurm training/evaluation scripts
-tests/                            focused model and Visual-FLOSS tests
+configs/visual_floss_mrstft.yaml   canonical VIST experiment
+mambaflow/                         model, flow objective, and training code
+  models/tfc_tdf_unet_flow_head.py   TFC-TDF U-Net velocity network
+  models/mcflow.py                   mixture-anchored flow wrapper
+  backbones/                         band-split audio + ST-GCN visual encoders
+patches/                           Acappella / MUSDB18 / AudioSet data loader
+scripts/                           training, evaluation, and inference entry points
+cluster/                           Slurm training / evaluation wrappers
+tests/                             unit tests
+samples/                           audio examples and per-mixture test scores
 ```
+
+In the code, the objective is named `visual_floss`.
 
 ## Installation
 
-Python 3.10 and a CUDA-enabled PyTorch installation are recommended.
+Python 3.10 and a CUDA build of PyTorch are recommended.
 
 ```bash
-git clone <YOUR-GITHUB-URL>
-cd visual-floss-avss
-
-python -m venv .venv
-source .venv/bin/activate
+git clone https://github.com/adithishankar19/visual-flow-avss.git
+cd visual-flow-avss
+python -m venv .venv && source .venv/bin/activate
 pip install --upgrade pip
 pip install -e .
 ```
 
-Install a PyTorch build appropriate for your CUDA driver if the default package is unsuitable.
+If the default wheel does not match your CUDA driver, install a PyTorch build that does.
 
 ## Data
 
-The experiment expects:
+The experiment uses:
 
-- Acappella vocal/video segments for the target source;
-- MUSDB accompaniment audio;
-- AudioSet interference audio.
+- [Acappella](https://ipcv.github.io/Acappella/): target singing videos, as audio + 68 facial landmarks per frame
+- [MUSDB18](https://sigsep.github.io/datasets/musdb.html): accompaniment stems
+- [AudioSet](https://research.google.com/audioset/): vocal-like interference clips
 
-You may edit the six placeholder paths in `configs/visual_floss_mrstft.yaml`. The recommended approach is to leave the tracked config unchanged and export machine-specific paths:
+The simplest setup is a single `DATA_ROOT` with this structure:
+
+```text
+$DATA_ROOT/
+  acappella/splits/{train,val_seen,test_unseen}
+  musdb_accomp/{train,valid,test}
+  audioset_split/{train,val,test}
+```
+
+To use a different layout, set individual paths. These override `DATA_ROOT`:
 
 ```bash
 export ACAPELLA_TRAIN=/path/to/acappella/splits/train
@@ -64,9 +124,9 @@ export AUDIOSET_TRAIN=/path/to/audioset_split/train
 export AUDIOSET_VAL=/path/to/audioset_split/val
 ```
 
-The repository does not redistribute datasets or trained checkpoints.
+This repository does not redistribute datasets or trained checkpoints.
 
-## Train locally
+## Training
 
 ```bash
 export DATA_ROOT=/path/to/data
@@ -74,85 +134,84 @@ export RUN_ROOT="$PWD/runs"
 bash scripts/train_local.sh
 ```
 
-`DATA_ROOT` is sufficient when it contains the directory structure shown above. Explicit `ACAPELLA_*`, `MUSDB_*`, and `AUDIOSET_*` variables override individual paths. The wrapper writes the fully resolved configuration into the run directory before training.
+The model is trained from random initialization, so do not pass `INIT_FROM`. With the default configuration, the batch size is 2 with 4 gradient-accumulation steps, which gives an effective batch size of 8 on one GPU. The wrapper writes the fully resolved configuration to the run directory before training starts.
 
-This is a from-scratch experiment. Do not pass an initialization checkpoint. With the default configuration, physical batch size is 2 and gradient accumulation is 4, giving an effective batch size of 8 on one GPU.
-
-## Run with Slurm
-
-The included wrapper converts environment variables into a run-specific configuration and submits the job:
+<details>
+<summary>Slurm</summary>
 
 ```bash
 export PROJECT_DIR="$PWD"
 export BASE_CONFIG="$PWD/configs/visual_floss_mrstft.yaml"
 export RUN_ROOT=/path/to/runs
-export RUN_NAME="visual_floss_mrstft_$(date +%Y%m%d_%H%M%S)"
+export RUN_NAME="vist_$(date +%Y%m%d_%H%M%S)"
 
-export SLURM_ACCOUNT=<slurm-account>
-export PARTITION=medium
-export QOS=normal
-export TIME=08:00:00
-export GRES=gpu:l40s:1
-export GPUS=1
+export SLURM_ACCOUNT=<account>
+export PARTITION=medium QOS=normal TIME=08:00:00
+export GRES=gpu:l40s:1 GPUS=1
 export CONDA_ENV=mambaflow
-
 export DATA_ROOT=/path/to/data
-export ACAPELLA_TRAIN=/path/to/acappella/splits/train
-export ACAPELLA_VAL=/path/to/acappella/splits/val_seen
-export MUSDB_TRAIN=/path/to/musdb_accomp/train
-export MUSDB_VAL=/path/to/musdb_accomp/valid
-export AUDIOSET_TRAIN=/path/to/audioset_split/train
-export AUDIOSET_VAL=/path/to/audioset_split/val
 
 unset INIT_FROM RESUME_FROM MAX_STEPS
 bash cluster/submit_visual_floss_slurm.sh
 ```
 
-To resume the same run, set `RESUME_FROM=/path/to/last.pt`, reuse its `RUN_NAME`, and run the same wrapper again. Keep `INIT_FROM` unset.
+To resume a run, reuse its `RUN_NAME`, set `RESUME_FROM=/path/to/last.pt`, and submit again.
 
-For cluster evaluation:
+For evaluation, see `cluster/submit_eval_slurm.sh`. It takes the same `CHECKPOINT`, `CONFIG`, `NUM_STEPS`, and `VISUAL_MODE` variables as the local script below.
 
-```bash
-export SLURM_ACCOUNT=<slurm-account>
-export CHECKPOINT=/path/to/best.pt
-export CONFIG=/path/to/config.resolved.yaml  # optional when beside checkpoint
-export NUM_STEPS=1
-export VISUAL_MODE=correct
-bash cluster/submit_eval_slurm.sh
-```
+</details>
 
-## Evaluate
+## Evaluation
 
 ```bash
 export CHECKPOINT=/path/to/best.pt
-export CONFIG=/path/to/config.resolved.yaml  # optional when beside checkpoint
+export CONFIG=/path/to/config.resolved.yaml   # optional if it sits next to the checkpoint
+export NUM_STEPS=1                            # Euler steps (paper: 1)
+export VISUAL_MODE=correct                    # correct | zero | shift | wrong | all
 bash scripts/evaluate_local.sh
 ```
 
-Run `python scripts/evaluate.py --help` for the complete set of dataset and inference options supported by your checkout.
+`VISUAL_MODE` runs the visual interventions from the paper: correct face, zeroed landmarks, time-shifted landmarks, and landmarks from an unrelated singer. EMA weights are used by default. See `python scripts/evaluate.py --help` for all options.
+
+By default, the validation slot is the seen-singer validation split, so that checkpoint selection never sees the test set. To evaluate on the unseen–unheard test set, render the config with `python scripts/render_config.py --use-test-splits ...`.
 
 ## Tests
 
 ```bash
 pip install -e '.[dev]'
-python -m pytest tests/test_visual_floss.py tests/test_shapes.py -v
+python -m pytest tests -v
 ```
 
 ## Reproducibility notes
 
-- Random seed: `1234`
-- Sample rate: `16,384 Hz`
-- One-step deployment inference by default
-- Effective training batch size: `8`
-- EMA decay: `0.999`; validation and best-checkpoint selection use EMA weights
-- Best checkpoint metric: validation SI-SDR
+| | |
+|---|---|
+| Seed | 1234 |
+| Sample rate | 16,384 Hz |
+| STFT | 1024 window, 256 hop |
+| Optimizer | AdamW, lr 3e-5 (12k warm-up, cosine to 1e-6), wd 1e-4, grad clip 1 |
+| Effective batch | 8 (2 × 4 accumulation), bf16 |
+| EMA | 0.999, used for validation and checkpoint selection |
+| Checkpoint selection | best validation SI-SDR on the seen-singer split |
+| Inference | 1 network evaluation |
 
-Results depend on the exact dataset construction and filtering. Report the number of valid evaluation examples and avoid silently replacing missing or silent interferers with zero audio.
+Results depend on how the dataset is built and filtered. When reporting numbers, give the number of valid evaluation mixtures, and do not silently replace missing or silent interferers with zeros.
 
 ## Citation
 
-A formal citation will be added when the accompanying paper is public. Until then, please cite the repository URL and commit hash.
+```bibtex
+@misc{shankar2026vist,
+  title  = {{VIST}: Visually Indexed, Mixture-Anchored Source Transport for One-Step Audiovisual Singing Voice Separation},
+  author = {Shankar, Adithi and Haro, Gloria and Serra, Xavier and Rocamora, Mart{\'i}n},
+  note   = {Submitted to ICASSP 2027},
+  year   = {2026}
+}
+```
+
+## Acknowledgements
+
+This work builds on [Acappella / VoViT](https://github.com/JuanFMontesinos/VoViT) (landmark encoder and dataset), MambaVoice (band-split encoder and evaluation protocol), and FLOSS (velocity loss).
 
 ## License
 
-No license is granted by default. Add an explicit license before accepting external contributions or permitting reuse.
+No license has been chosen yet. Until one is added, all rights are reserved.
