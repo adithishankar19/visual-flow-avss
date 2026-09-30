@@ -26,6 +26,7 @@ from .flow_head import WaveformFlowHead
 from .spec_unet_flow_head import SpecUNetFlowHead
 from .diffvs_unet_flow_head import DiffVSUNetFlowHead
 from .tfc_tdf_unet_flow_head import TFCTDFUNetFlowHead
+from .mamba_hybrid_flow_head import MambaHybridFlowHead
 
 def si_sdr_score(pred: torch.Tensor, target: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
     """Differentiable per-sample SI-SDR score in dB.
@@ -52,6 +53,8 @@ class MambaVoiceMCFlow(nn.Module):
       - head.type: waveform   -> legacy 1-D WaveNet-style flow head.
       - head.type: spec_unet  -> legacy 2-D complex-STFT U-Net flow head.
       - head.type: diffvs_unet -> Diff-VS-inspired audio-aware DDPM++ U-Net.
+      - head.type: tfc_tdf_unet -> four-level TFC-TDF U-Net (VIST).
+      - head.type: mamba_hybrid -> MambaVoice hybrid Mamba-Transformer.
 
     The spectrogram head is the recommended SOTA path. It predicts velocity over
     target/residual complex STFT channels and then reconstructs the waveform with
@@ -195,6 +198,7 @@ class MambaVoiceMCFlow(nn.Module):
             "spec_unet", "spectrogram_unet", "complex_unet", "y_net", "ynet",
             "diffvs_unet", "diff_vs_unet", "diffvs",
             "tfc_tdf_unet", "tfctdf_unet", "tfc_tdf",
+            "mamba_hybrid", "mambavoice_hybrid",
         }:
             # DAVIS-style target-only flow predicts only the target complex STFT
             # velocity. The residual is computed afterwards as mixture - target.
@@ -213,6 +217,8 @@ class MambaVoiceMCFlow(nn.Module):
                 self.head = DiffVSUNetFlowHead(cond_dim=cond_dim, **head_cfg)
             elif self.head_type in {"tfc_tdf_unet", "tfctdf_unet", "tfc_tdf"}:
                 self.head = TFCTDFUNetFlowHead(cond_dim=cond_dim, **head_cfg)
+            elif self.head_type in {"mamba_hybrid", "mambavoice_hybrid"}:
+                self.head = MambaHybridFlowHead(cond_dim=cond_dim, **head_cfg)
             else:
                 self.head = SpecUNetFlowHead(cond_dim=cond_dim, **head_cfg)
             self.is_spec_head = True
@@ -783,7 +789,7 @@ class MambaVoiceMCFlow(nn.Module):
                 )
             extra["interval_end"] = interval_end
         if cross_attention_tokens is not None:
-            if isinstance(self.head, TFCTDFUNetFlowHead):
+            if isinstance(self.head, (TFCTDFUNetFlowHead, MambaHybridFlowHead)):
                 extra["cross_attention_tokens"] = cross_attention_tokens
         v = self.head(
             x_t,

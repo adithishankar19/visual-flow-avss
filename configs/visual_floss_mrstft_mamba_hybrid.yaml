@@ -1,0 +1,186 @@
+# Visual-FLOSS training from random initialization, with the MambaVoice
+# hybrid Mamba-Transformer as the velocity network.
+#
+# The optimized objective is exactly:
+#   L = 0.05 * L_FLOSS + 0.10 * L_MR-STFT
+#
+# Deployment and endpoint losses are computed only as diagnostics; their
+# coefficients are zero and they do not contribute gradients.
+
+data:
+  kind: vovit
+  train:
+    file_path: patches/dataloaders_acapella_musdb_target_only.py
+    class_name: AcapellaDataset
+    init_kwargs:
+      framerate: 25
+      audiorate: 16384
+      n: 1
+      musdb_path: /path/to/musdb_accomp/train
+      audioset_path: /path/to/audioset_split/train
+      data_path: /path/to/acappella/splits/train
+      is_train: true
+      interference_prob: 1.0
+      identity_shuffle_prob: 0.5
+      exclude_same_stem_interferer: true
+      target_rms_range: [0.06, 0.14]
+      global_gain_db_range: [-6.0, 3.0]
+  val:
+    file_path: patches/dataloaders_acapella_musdb_target_only.py
+    class_name: AcapellaDataset
+    init_kwargs:
+      framerate: 25
+      audiorate: 16384
+      n: 1
+      musdb_path: /path/to/musdb_accomp/valid
+      audioset_path: /path/to/audioset_split/val
+      data_path: /path/to/acappella/splits/val_seen
+      is_train: false
+      interference_prob: 1.0
+      identity_shuffle_prob: 0.0
+      deterministic: true
+      seed: 1234
+      target_rms_range: [0.10, 0.10]
+      global_gain_db_range: [0.0, 0.0]
+
+backbone:
+  use_local_feature_extractor: true
+  debug_feature_shapes: false
+  local_feature_cfg:
+    sample_rate: 16384
+    n_fft: 1022
+    hop_length: 256
+    downsample_coarse: true
+    video_temporal_features: 256
+    n: 1
+    debug_shapes: false
+  freeze: false
+  strict: true
+
+model:
+  gate_type: film
+  gate_strength: 1.0
+  cond_dim: 512
+  global_condition_type: fused
+  temporal_token_type: fused
+  audio_condition_dropout: 0.2
+  visual_token_dropout: 0.10
+  visual_token_noise_std: 0.02
+  raw_visual_map: false
+  concat_learned_activity: true
+  debug_feature_shapes: false
+
+stft:
+  n_fft: 1024
+  hop_length: 256
+  win_length: 1024
+  center: true
+
+head:
+  # MambaVoice hybrid Mamba-Transformer in place of the TFC-TDF U-Net.
+  # d_model, band layout and the 2 Mamba + 2 Transformer "mamba_first" stage
+  # follow MambaVoice; mlp_ratio 2 (MambaVoice: 4) matches the U-Net head's
+  # size (16.0M vs 15.7M trainable parameters).
+  type: mamba_hybrid
+  input_freq_bins: 513
+  band_dim: 128
+  band_heads: 8
+  d_model: 512
+  num_mamba_layers: 2
+  num_transformer_layers: 2
+  num_heads: 8
+  mlp_ratio: 2.0
+  d_state: 16
+  kernel_size: 3
+  dropout: 0.1
+  embedding_dim: 384
+  time_dim: 128
+  visual_gate: true
+  visual_cross_attention: true
+  temporal_num_heads: 8
+  visual_reliability_floor: 0.25
+  output_mode: mask_residual
+  # Fail instead of silently running the slow reference scan when the
+  # mamba_ssm CUDA kernel is missing.
+  scan_backend: cuda
+
+flow:
+  target_mode: target_only
+  init_mode: mixture
+  init_noise_scale: 0.0
+  objective: visual_floss
+  visual_cross_attention: true
+  adaptive_drift: false
+  consistency: none
+  noise_scale: 1.0
+  num_steps: 1
+  visual_floss:
+    deployment_ratio: 0.50
+    noise_scale: 0.10
+    time_sampling: logit_normal
+    logit_mu: -0.4
+    logit_sigma: 1.0
+    max_t: 0.95
+    curriculum_steps: 16000
+    loss_eps: 1.0e-07
+    db_floor: -20.0
+    db_ceiling: 30.0
+
+training:
+  out_dir: runs/visual_floss_mrstft_mamba_hybrid
+  seed: 1234
+  device: cuda
+  batch_size: 2
+  num_workers: 4
+  epochs: 100
+  lr: 3.0e-05
+  min_lr: 1.0e-06
+  weight_decay: 0.0001
+  grad_clip: 1.0
+  warmup_steps: 12000
+  warmup_start_factor: 0.05
+  grad_accum_steps: 4
+  amp: bf16
+  require_init_from: false
+  validate_at_start: false
+  log_feature_trainability: true
+  assert_feature_extractor_trainable: true
+
+  # The only non-zero objective coefficients.
+  lambda_floss: 0.05
+  lambda_mrstft: 0.10
+
+  # Logged diagnostics / disabled auxiliary objectives.
+  lambda_deployment: 0.0
+  lambda_endpoint: 0.0
+  lambda_visual_reliability: 0.0
+  lambda_drift: 0.0
+  lambda_recon: 0.0
+  lambda_fm: 0.0
+  lambda_meanflow: 0.0
+  lambda_consistency: 0.0
+  lambda_base_drift: 0.0
+  lambda_delta_reg: 0.0
+  lambda_flowmap: 0.0
+  lambda_composition: 0.0
+  lambda_adapter_reg: 0.0
+
+  interference_curriculum:
+    - {epoch: 0, prob: 1.00}
+
+  log_every: 100
+  val_every: 4000
+  save_every: 4000
+  val_batches: null
+  val_batch_size: 2
+  val_num_workers: 0
+  val_num_steps: 1
+  save_best: true
+  ema_decay: 0.999
+  ema_eval: true
+  save_ema_best: true
+  save_ema_last: true
+  best_metric: val_si_sdr
+  best_mode: max
+  progress: false
+  val_progress: false
