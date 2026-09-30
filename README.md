@@ -210,7 +210,7 @@ Results depend on how the dataset is built and filtered. When reporting numbers,
 
 ## Acknowledgements
 
-This work builds on [Acappella / VoViT](https://github.com/JuanFMontesinos/VoViT) (landmark encoder and dataset), MambaVoice (band-split encoder and evaluation protocol), and FLOSS (velocity loss).
+This work builds on the [Acappella / VoViT](https://github.com/JuanFMontesinos/VoViT)
 
 ## License
 
