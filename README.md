@@ -220,10 +220,4 @@ Results depend on how the dataset is built and filtered. When reporting numbers,
   note   = {Submitted to ICASSP 2027},
   year   = {2026}
 }
-```
-
-## Acknowledgements
-
-This work builds on the [Acappella / VoViT](https://github.com/JuanFMontesinos/VoViT)
-
 
