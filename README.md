@@ -212,6 +212,4 @@ Results depend on how the dataset is built and filtered. When reporting numbers,
 
 This work builds on the [Acappella / VoViT](https://github.com/JuanFMontesinos/VoViT)
 
-## License
 
-No license has been chosen yet. Until one is added, all rights are reserved.
