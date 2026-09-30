@@ -15,12 +15,12 @@ ARGS=(
   --config "${CONFIG}"
   --checkpoint "${CHECKPOINT}"
   --num_batches "${NUM_BATCHES:-all}"
-  --batch_size "${BATCH_SIZE:-1}"
   --visual_mode "${VISUAL_MODE:-correct}"
   --num_steps "${NUM_STEPS:-1}"
   --out_csv "${OUT_CSV}"
 )
 [[ "${USE_EMA:-1}" == "1" ]] && ARGS+=(--use_ema)
 [[ "${NO_PROGRESS:-0}" == "1" ]] && ARGS+=(--no_progress)
+[[ -n "${SAVE_DIR:-}" ]] && ARGS+=(--save_dir "${SAVE_DIR}")
 
 python scripts/evaluate.py "${ARGS[@]}"

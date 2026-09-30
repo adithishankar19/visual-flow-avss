@@ -1,20 +1,21 @@
 [project]
-name = "visual-floss-avss"
+name = "vist"
 version = "0.1.0"
 description = "VIST: visually indexed, mixture-anchored source transport for one-step audiovisual singing voice separation"
 requires-python = ">=3.9"
 dependencies = [
-    "torch>=1.10",
+    "torch>=2.0",
     "numpy",
+    "scipy",
     "PyYAML",
     "tqdm",
-    "einops",
     "librosa",
     "soundfile",
+    "fast-bss-eval",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest"]
 
 [tool.setuptools.packages.find]
-include = ["mambaflow*"]
+include = ["vist*"]

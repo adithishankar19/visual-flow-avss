@@ -11,15 +11,10 @@ from .modules.st_gcn import ST_GCN
 
 
 class LocalMambaVoiceFeatureExtractor(nn.Module):
-    """Local MambaVoice-style audio/visual feature extractor.
+    """MambaVoice-style audio/visual feature extractor.
 
-    This is intentionally only the feature-extraction part needed by MCFlow:
-      - facial keypoints -> ST-GCN -> interpolated visual tokens [B,T,256]
-      - mixture waveform -> STFT magnitude -> BandSplit AudioEncoder -> [B,T,512]
-
-    It mirrors the relevant `forward_visual` and audio feature path from the
-    gesture-guided/MambaVoice repo so the flow repo does not need to import that
-    repo just to build temporal conditioning features.
+      - facial landmarks -> ST-GCN -> interpolated visual tokens [B,T,256]
+      - mixture waveform -> STFT magnitude -> band-split AudioEncoder -> [B,T,512]
     """
 
     DEFAULT_BANDS: Tuple[Tuple[int, int], ...] = (

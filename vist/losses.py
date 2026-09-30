@@ -13,10 +13,6 @@ def si_sdr(reference: torch.Tensor, estimate: torch.Tensor, eps: float = 1e-8) -
     return 10 * torch.log10((target.pow(2).sum(dim=-1) + eps) / (noise.pow(2).sum(dim=-1) + eps))
 
 
-def neg_si_sdr(reference: torch.Tensor, estimate: torch.Tensor) -> torch.Tensor:
-    return -si_sdr(reference, estimate).mean()
-
-
 _MRSTFT_WINDOWS: dict[tuple, torch.Tensor] = {}
 
 
@@ -37,15 +33,12 @@ def multi_resolution_stft_loss(
     hop_ratio: float = 0.25,
     log_eps: float = 1e-5,
 ) -> torch.Tensor:
-    """Spectral-convergence + log-magnitude loss over several STFT resolutions.
+    """Multi-resolution STFT loss L_MR: spectral convergence + log magnitude.
 
-    The complex-STFT L1 losses used elsewhere in this repo operate on *linear*
-    amplitudes, so their gradient is dominated by the handful of loud
-    low-frequency bins; the upper spectrum, where singing-voice separation
-    artefacts actually live, contributes almost nothing.  The log-magnitude term
-    equalises that, and the spectral-convergence term keeps the loud bins
-    honest.  Both are scale-sensitive, so neither can be satisfied by a quiet
-    but well-correlated prediction.
+    The log-magnitude term weights all frequency bins roughly equally, and the
+    spectral-convergence term keeps the loud bins accurate.  Both are
+    scale-sensitive, so neither can be satisfied by a quiet but well-correlated
+    prediction.
 
     estimate, reference: [B, L] waveforms.
     """

@@ -18,4 +18,3 @@ slurm_logs/
 *.ckpt
 *.out
 *.err
-config.snow.yaml

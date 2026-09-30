@@ -55,32 +55,36 @@ The examples range from strong to weak separations. `example_0296` shows a harde
 
 **Training paths.** For a mixture STFT $\mathbf{M}$ and target $\mathbf{S}$, the path state is $\mathbf{z}_t = (1-t)(\mathbf{M}+\mathbf{n}) + t\mathbf{S}$ and the velocity target is $\mathbf{v}^\star = \mathbf{S}-\mathbf{M}-\mathbf{n}$. Here $\mathbf{n}$ is the STFT of white noise whose standard deviation is 0.1 × the mixture RMS. Half of each batch is placed at the inference state $(\mathbf{n}, t) = (\mathbf{0}, 0)$. The remaining states draw $t$ from a logit-normal distribution ($\mu=-0.4$, $\sigma=1$, $t \le 0.95$). Both the noise level and $t$ are ramped up over the first 16k updates.
 
-**Objective.** The released configuration optimizes
+**Objective.** The network is trained with
 
 $$
-\mathcal{L} = 0.05\,\mathcal{L}_{\mathrm{vel}} + 0.10\,\mathcal{L}_{\mathrm{MR}},
+\mathcal{L} = 0.05\,\mathcal{L}_{\mathrm{vel}} + 0.10\,\mathcal{L}_{\mathrm{MR}} + 0.05\,\mathcal{L}_{\mathrm{rel}},
 $$
 
-where $\mathcal{L}_{\mathrm{vel}} = \mathrm{clip}\big(10\log_{10}\tfrac{\lVert\hat{\mathbf{v}}-\mathbf{v}^\star\rVert^2+\epsilon}{\lVert\mathbf{v}^\star\rVert^2+\epsilon},\,-20,\,30\big)$ is the scale-normalized decibel velocity loss from FLOSS. $\mathcal{L}_{\mathrm{MR}}$ is a multi-resolution STFT loss on the one-step estimate. Other loss terms, such as deployment, endpoint, and drift losses, still appear in the logs as diagnostics, but their coefficients are zero.
+where $\mathcal{L}_{\mathrm{vel}} = \mathrm{clip}\big(10\log_{10}\tfrac{\lVert\hat{\mathbf{v}}-\mathbf{v}^\star\rVert^2+\epsilon}{\lVert\mathbf{v}^\star\rVert^2+\epsilon},\,-20,\,30\big)$ is the scale-normalized decibel velocity loss from FLOSS. $\mathcal{L}_{\mathrm{MR}}$ is a multi-resolution STFT loss on the one-step estimate, computed in a second pass at the inference state. $\mathcal{L}_{\mathrm{rel}}$ is a binary cross-entropy that trains the visual reliability gate $r$ to detect the 10% of visual frames that are zeroed at random during training.
 
 **Network.** The network is a four-level TFC-TDF U-Net with 60/120/180/240 channels and two blocks per level. Its input is $[\mathbf{z}_t; \mathbf{M}]$ as 513-bin complex STFTs (window 1024, hop 256). The mixture is encoded with the band-split attention encoder from MambaVoice. The target singer's face is encoded with an ST-GCN over 68 facial landmarks. The audio and visual tokens are fused with FiLM and condition the U-Net at every scale. At the bottleneck, a cross-attention layer over the visual tokens is gated by a learned reliability $r \in [0.25, 1]$. The model has 23.2M parameters.
 
 ## Repository layout
 
 ```text
-configs/visual_floss_mrstft.yaml   canonical VIST experiment
-mambaflow/                         model, flow objective, and training code
-  models/tfc_tdf_unet_flow_head.py   TFC-TDF U-Net velocity network
-  models/mcflow.py                   mixture-anchored flow wrapper
-  backbones/                         band-split audio + ST-GCN visual encoders
-patches/                           Acappella / MUSDB18 / AudioSet data loader
-scripts/                           training, evaluation, and inference entry points
-cluster/                           Slurm training / evaluation wrappers
-tests/                             unit tests
-samples/                           audio examples and per-mixture test scores
+configs/vist.yaml          the VIST experiment (all hyperparameters of the paper)
+vist/
+  model.py                 training paths, loss (Eqs. 1-6) and one-step inference (Eq. 3)
+  unet.py                  TFC-TDF U-Net velocity network
+  conditioner.py           FiLM fusion of audio and visual tokens, reliability r
+  encoders/                band-split audio encoder and ST-GCN over facial landmarks
+  data/acappella.py        Acappella + MUSDB18 + AudioSet mixtures
+  trainer.py               AdamW, warm-up + cosine, EMA, checkpoint selection
+scripts/
+  train.py, train_local.sh           training
+  evaluate.py, evaluate_local.sh     SDR / SIR / SI-SDR, visual interventions, target swapping
+  separate.py                        separate one mixture
+  render_config.py                   fill in machine-specific paths
+cluster/                   Slurm wrappers
+tests/                     unit tests
+samples/                   audio examples and per-mixture test scores
 ```
-
-In the code, the objective is named `visual_floss`.
 
 ## Installation
 
@@ -134,25 +138,25 @@ export RUN_ROOT="$PWD/runs"
 bash scripts/train_local.sh
 ```
 
-The model is trained from random initialization, so do not pass `INIT_FROM`. With the default configuration, the batch size is 2 with 4 gradient-accumulation steps, which gives an effective batch size of 8 on one GPU. The wrapper writes the fully resolved configuration to the run directory before training starts.
+The model is trained from random initialization. With the default configuration, the batch size is 2 with 4 gradient-accumulation steps, which gives an effective batch size of 8 on one GPU. The wrapper writes the fully resolved configuration to the run directory before training starts.
 
 <details>
 <summary>Slurm</summary>
 
 ```bash
 export PROJECT_DIR="$PWD"
-export BASE_CONFIG="$PWD/configs/visual_floss_mrstft.yaml"
+export BASE_CONFIG="$PWD/configs/vist.yaml"
 export RUN_ROOT=/path/to/runs
 export RUN_NAME="vist_$(date +%Y%m%d_%H%M%S)"
 
 export SLURM_ACCOUNT=<account>
 export PARTITION=medium QOS=normal TIME=08:00:00
 export GRES=gpu:l40s:1 GPUS=1
-export CONDA_ENV=mambaflow
+export CONDA_ENV=vist
 export DATA_ROOT=/path/to/data
 
-unset INIT_FROM RESUME_FROM MAX_STEPS
-bash cluster/submit_visual_floss_slurm.sh
+unset RESUME_FROM MAX_STEPS
+bash cluster/submit_vist_slurm.sh
 ```
 
 To resume a run, reuse its `RUN_NAME`, set `RESUME_FROM=/path/to/last.pt`, and submit again.
@@ -171,7 +175,17 @@ export VISUAL_MODE=correct                    # correct | zero | shift | wrong |
 bash scripts/evaluate_local.sh
 ```
 
-`VISUAL_MODE` runs the visual interventions from the paper: correct face, zeroed landmarks, time-shifted landmarks, and landmarks from an unrelated singer. EMA weights are used by default. See `python scripts/evaluate.py --help` for all options.
+For every mixture, the script reports BSS-Eval SDR and SIR (512-tap distortion filters, with the target and the rest of the mixture as references, after resampling to 16 kHz), SI-SDR, and whether the target was swapped, i.e. whether the remainder $\mathbf{M}-\hat{\mathbf{S}}$ is closer to the target than $\hat{\mathbf{S}}$ in SI-SDR. It prints means with 95% bootstrap confidence intervals, and `OUT_CSV` keeps the per-mixture scores. Set `SAVE_DIR` to also write the audio in the layout of [`samples/`](samples).
+
+`VISUAL_MODE` runs the visual interventions of Table 3: the correct face, zeroed landmarks, landmarks shifted in time by half the clip, and the landmarks of a singer from another test clip. `all` also prints the paired SDR differences to the correct face. EMA weights are used by default. See `python scripts/evaluate.py --help` for all options.
+
+To separate a single mixture:
+
+```bash
+python scripts/separate.py --checkpoint best.pt --mixture mix.wav --landmarks face.npy --out_dir out/
+```
+
+The mixture must be at 16,384 Hz, and `face.npy` holds the target singer's 68 facial landmarks at 25 fps, with shape `[T, 2, 68]`.
 
 By default, the validation slot is the seen-singer validation split, so that checkpoint selection never sees the test set. To evaluate on the unseen–unheard test set, render the config with `python scripts/render_config.py --use-test-splits ...`.
 

@@ -2,9 +2,9 @@
 set -euo pipefail
 
 PROJECT_DIR="${PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-BASE_CONFIG="${BASE_CONFIG:-${PROJECT_DIR}/configs/visual_floss_mrstft.yaml}"
+BASE_CONFIG="${BASE_CONFIG:-${PROJECT_DIR}/configs/vist.yaml}"
 RUN_ROOT="${RUN_ROOT:-${PROJECT_DIR}/runs}"
-RUN_NAME="${RUN_NAME:-visual_floss_$(date +%Y%m%d_%H%M%S)}"
+RUN_NAME="${RUN_NAME:-vist_$(date +%Y%m%d_%H%M%S)}"
 RUN_DIR="${RUN_DIR:-${RUN_ROOT}/${RUN_NAME}}"
 
 mkdir -p "${RUN_DIR}"

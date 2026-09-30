@@ -5,9 +5,9 @@ set -euo pipefail
 # cluster/submit_train_slurm.sh so resources are requested consistently.
 
 PROJECT_DIR="${PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-BASE_CONFIG="${BASE_CONFIG:-configs/visual_floss_mrstft.yaml}"
-CONDA_ENV="${CONDA_ENV:-mambaflow}"
-RUN_NAME="${RUN_NAME:-visual_floss_$(date +%Y%m%d_%H%M%S)}"
+BASE_CONFIG="${BASE_CONFIG:-configs/vist.yaml}"
+CONDA_ENV="${CONDA_ENV:-vist}"
+RUN_NAME="${RUN_NAME:-vist_$(date +%Y%m%d_%H%M%S)}"
 RUN_ROOT="${RUN_ROOT:-${PROJECT_DIR}/runs_cluster}"
 RUN_DIR="${RUN_DIR:-${RUN_ROOT}/${RUN_NAME}}"
 DATA_ROOT="${DATA_ROOT:-}"
@@ -22,7 +22,6 @@ VAL_EVERY="${VAL_EVERY:-8000}"
 VAL_BATCHES="${VAL_BATCHES:-}"
 MAX_STEPS="${MAX_STEPS:-}"
 RESUME_FROM="${RESUME_FROM:-}"
-INIT_FROM="${INIT_FROM:-}"
 DISABLE_PROGRESS="${DISABLE_PROGRESS:-0}"
 
 mkdir -p "${RUN_DIR}"
@@ -94,6 +93,5 @@ cp "$0" "${RUN_DIR}/run_train_slurm.sh"
 TRAIN_ARGS=(--config "${CONFIG_OUT}")
 [[ -n "${MAX_STEPS}" ]] && TRAIN_ARGS+=(--max_steps "${MAX_STEPS}")
 [[ -n "${RESUME_FROM}" ]] && TRAIN_ARGS+=(--resume_from "${RESUME_FROM}")
-[[ -n "${INIT_FROM}" ]] && TRAIN_ARGS+=(--init_from "${INIT_FROM}")
 
 python scripts/train.py "${TRAIN_ARGS[@]}"

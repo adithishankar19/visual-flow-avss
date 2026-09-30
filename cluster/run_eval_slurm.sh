@@ -2,12 +2,11 @@
 set -euo pipefail
 
 PROJECT_DIR="${PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-CONDA_ENV="${CONDA_ENV:-mambaflow}"
+CONDA_ENV="${CONDA_ENV:-vist}"
 : "${CHECKPOINT:?Set CHECKPOINT=/path/to/best.pt or last.pt before submitting evaluation.}"
 CONFIG="${CONFIG:-}"
 VISUAL_MODE="${VISUAL_MODE:-all}"
 NUM_BATCHES="${NUM_BATCHES:-all}"
-BATCH_SIZE="${BATCH_SIZE:-1}"
 NUM_STEPS="${NUM_STEPS:-1}"
 USE_EMA="${USE_EMA:-0}"
 NO_PROGRESS="${NO_PROGRESS:-0}"
@@ -43,7 +42,6 @@ EVAL_ARGS=(
   --config "${CONFIG}"
   --checkpoint "${CHECKPOINT}"
   --num_batches "${NUM_BATCHES}"
-  --batch_size "${BATCH_SIZE}"
   --visual_mode "${VISUAL_MODE}"
   --num_steps "${NUM_STEPS}"
   --out_csv "${OUT_CSV}"

@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Generic Slurm submission wrapper for Visual-FLOSS training.
-# Required: export SLURM_ACCOUNT=<your-account> (SNOW_ACCOUNT is accepted as
-# a backwards-compatible alias).
+# Generic Slurm submission wrapper for VIST training.
+# Required: export SLURM_ACCOUNT=<your-account>.
 
 PROJECT_DIR="${PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-SLURM_ACCOUNT="${SLURM_ACCOUNT:-${SNOW_ACCOUNT:-}}"
 : "${SLURM_ACCOUNT:?Set SLURM_ACCOUNT to your Slurm account.}"
 
 PARTITION="${PARTITION:-gpu}"
@@ -15,9 +13,9 @@ TIME="${TIME:-48:00:00}"
 CPUS_PER_TASK="${CPUS_PER_TASK:-4}"
 MEM="${MEM:-32G}"
 GPUS="${GPUS:-1}"
-JOB_NAME="${JOB_NAME:-visual_floss}"
-CONDA_ENV="${CONDA_ENV:-mambaflow}"
-RUN_NAME="${RUN_NAME:-visual_floss_$(date +%Y%m%d_%H%M%S)}"
+JOB_NAME="${JOB_NAME:-vist}"
+CONDA_ENV="${CONDA_ENV:-vist}"
+RUN_NAME="${RUN_NAME:-vist_$(date +%Y%m%d_%H%M%S)}"
 RUN_ROOT="${RUN_ROOT:-${PROJECT_DIR}/runs}"
 
 mkdir -p "${RUN_ROOT}/slurm_logs"
@@ -47,7 +45,7 @@ if [[ -n "${BEGIN:-}" ]]; then
 fi
 echo "submit: job=${JOB_NAME} run=${RUN_NAME}"
 echo "submit: config=${BASE_CONFIG:-<wrapper default>}"
-echo "submit: resume=${RESUME_FROM:-<none>} init=${INIT_FROM:-<none>}"
+echo "submit: resume=${RESUME_FROM:-<none>}"
 
 # ${arr[@]+"${arr[@]}"} so an EMPTY array does not trip `set -u` on bash < 4.4.
 sbatch ${SBATCH_EXTRA_ARGS[@]+"${SBATCH_EXTRA_ARGS[@]}"} \
@@ -63,5 +61,5 @@ sbatch ${SBATCH_EXTRA_ARGS[@]+"${SBATCH_EXTRA_ARGS[@]}"} \
   --time="${TIME}" \
   --output="${RUN_ROOT}/slurm_logs/%x_%j.out" \
   --error="${RUN_ROOT}/slurm_logs/%x_%j.err" \
-  --export=ALL,GRES="${GRES:-gpu:${GPUS}}",GPUS="${GPUS}",USE_TORCHRUN="${USE_TORCHRUN:-0}",PROJECT_DIR="${PROJECT_DIR}",CONDA_ENV="${CONDA_ENV}",RUN_NAME="${RUN_NAME}",RUN_ROOT="${RUN_ROOT}",DATA_ROOT="${DATA_ROOT:-}",BASE_CONFIG="${BASE_CONFIG:-}",BATCH_SIZE="${BATCH_SIZE:-2}",NUM_WORKERS="${NUM_WORKERS:-4}",VAL_BATCH_SIZE="${VAL_BATCH_SIZE:-1}",VAL_NUM_WORKERS="${VAL_NUM_WORKERS:-0}",EPOCHS="${EPOCHS:-100}",LR="${LR:-3e-5}",VAL_EVERY="${VAL_EVERY:-8000}",VAL_BATCHES="${VAL_BATCHES:-}",MAX_STEPS="${MAX_STEPS:-}",RESUME_FROM="${RESUME_FROM:-}",INIT_FROM="${INIT_FROM:-}",DISABLE_PROGRESS="${DISABLE_PROGRESS:-0}",ACAPELLA_TRAIN="${ACAPELLA_TRAIN:-}",ACAPELLA_VAL="${ACAPELLA_VAL:-}",MUSDB_TRAIN="${MUSDB_TRAIN:-}",MUSDB_VAL="${MUSDB_VAL:-}",AUDIOSET_TRAIN="${AUDIOSET_TRAIN:-}",AUDIOSET_VAL="${AUDIOSET_VAL:-}" \
+  --export=ALL,GRES="${GRES:-gpu:${GPUS}}",GPUS="${GPUS}",USE_TORCHRUN="${USE_TORCHRUN:-0}",PROJECT_DIR="${PROJECT_DIR}",CONDA_ENV="${CONDA_ENV}",RUN_NAME="${RUN_NAME}",RUN_ROOT="${RUN_ROOT}",DATA_ROOT="${DATA_ROOT:-}",BASE_CONFIG="${BASE_CONFIG:-}",BATCH_SIZE="${BATCH_SIZE:-2}",NUM_WORKERS="${NUM_WORKERS:-4}",VAL_BATCH_SIZE="${VAL_BATCH_SIZE:-1}",VAL_NUM_WORKERS="${VAL_NUM_WORKERS:-0}",EPOCHS="${EPOCHS:-100}",LR="${LR:-3e-5}",VAL_EVERY="${VAL_EVERY:-8000}",VAL_BATCHES="${VAL_BATCHES:-}",MAX_STEPS="${MAX_STEPS:-}",RESUME_FROM="${RESUME_FROM:-}",DISABLE_PROGRESS="${DISABLE_PROGRESS:-0}",ACAPELLA_TRAIN="${ACAPELLA_TRAIN:-}",ACAPELLA_VAL="${ACAPELLA_VAL:-}",MUSDB_TRAIN="${MUSDB_TRAIN:-}",MUSDB_VAL="${MUSDB_VAL:-}",AUDIOSET_TRAIN="${AUDIOSET_TRAIN:-}",AUDIOSET_VAL="${AUDIOSET_VAL:-}" \
   "${PROJECT_DIR}/cluster/run_train_slurm.sh"

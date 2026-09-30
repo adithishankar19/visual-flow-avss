@@ -29,7 +29,7 @@ def _set_if_not_none(mapping: dict[str, Any], key: str, value: Any) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Create a runnable Visual-FLOSS config YAML.")
+    parser = argparse.ArgumentParser(description="Create a runnable VIST config YAML.")
     parser.add_argument("--base-config", required=True, help="Original experiment YAML.")
     parser.add_argument("--out", required=True, help="Path for generated config YAML.")
     parser.add_argument("--run-dir", required=True, help="Directory where checkpoints/results will be written.")
